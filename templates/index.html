@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ title }}</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css"
+    />
+    <style>
+      body {
+        background-color: #212529;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      }
+      .card {
+        border: 1px solid rgba(255, 255, 255, 0.1);
+      }
+      /* Custom style for the mapping image, you can adjust these values */
+      #gambar-mapping-ayam {
+        max-width: 100%; /* Ensures it doesn't overflow its parent */
+        height: auto; /* Maintains aspect ratio */
+        width: 300px; /* Default custom width - adjust as needed */
+        /* height: 200px; */ /* Uncomment and set a specific height if desired, but 'height: auto' is usually better */
+        object-fit: contain; /* Ensures the entire image is visible within the bounds */
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container-fluid p-4">
+      <header class="d-flex justify-content-between align-items-center mb-4">
+        <h1 class="text-white">
+          <i class="bi bi-grid-1x2-fill text-primary"></i> Dashboard Monitoring
+          Kandang Broiler
+        </h1>
+        <span id="waktu-sekarang" class="text-white-50"></span>
+      </header>
+
+      <div class="row">
+        <div class="col-lg-8">
+          <div class="card bg-dark text-white mb-4">
+            <div class="card-header">
+              <h5>
+                <i class="bi bi-camera-video-fill"></i> Live Stream Kandang
+              </h5>
+            </div>
+            <div class="card-body p-0 bg-black">
+              <img
+                src="{{ url_for('video_feed') }}"
+                class="img-fluid"
+                alt="Live Video Stream Kandang"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div class="col-lg-4">
+          <div class="card bg-dark text-white mb-4">
+            <div class="card-header">
+              <h5><i class="bi bi-thermometer-half"></i> Data Suhu Kandang</h5>
+            </div>
+            <div class="card-body">
+              <p class="text-white-50">
+                Fitur data suhu dan peta sebaran suhu akan dikembangkan
+                selanjutnya.
+              </p>
+            </div>
+          </div>
+
+          <div class="card bg-dark text-white mb-4">
+            <div class="card-header">
+              <h5>
+                <i class="bi bi-grid-fill"></i> Peta Sebaran Ayam (Terbaru)
+              </h5>
+            </div>
+            <div class="card-body text-center p-2">
+              <img
+                id="gambar-mapping-ayam"
+                src="https://via.placeholder.com/300x200/343a40/ffffff?text=Menunggu+Data..."
+                alt="Gambar Mapping Ayam"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      async function updateDensityPlot() {
+        try {
+          const response = await fetch("/api/dashboard_data");
+          const data = await response.json();
+
+          if (data.error) {
+            console.error("Error dari API:", data.error);
+            return;
+          }
+
+          // Ambil elemen gambar
+          const imgElement = document.getElementById("gambar-mapping-ayam");
+          const newImageUrl = data.mapping.density_plot_url;
+
+          // Cek apakah URL gambar berubah sebelum me-reload untuk efisiensi
+          if (imgElement.src !== newImageUrl) {
+            imgElement.src = newImageUrl;
+            console.log("Plot kepadatan diperbarui ke:", newImageUrl);
+          }
+        } catch (error) {
+          console.error("Gagal mengambil data dashboard:", error);
+        }
+      }
+
+      function updateWaktu() {
+        const now = new Date();
+        const options = {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          timeZone: "Asia/Jakarta",
+        };
+        document.getElementById("waktu-sekarang").innerText =
+          now.toLocaleString("id-ID", options);
+      }
+
+      // Jalankan saat halaman pertama kali dimuat
+      document.addEventListener("DOMContentLoaded", () => {
+        updateDensityPlot();
+        updateWaktu();
+        // Atur pembaruan data setiap 5 detik
+        setInterval(updateDensityPlot, 5000);
+        setInterval(updateWaktu, 1000);
+      });
+    </script>
+  </body>
+</html>

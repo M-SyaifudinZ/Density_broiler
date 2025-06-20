@@ -1,0 +1,9 @@
+ultralytics
+opencv-python
+numpy
+matplotlib
+supabase
+flask
+schedule
+requests
+python-dotenv
