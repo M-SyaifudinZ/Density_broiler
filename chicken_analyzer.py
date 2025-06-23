@@ -240,35 +240,83 @@ class ChickenDensityAnalyzer:
     def process_rtsp_stream_for_mjpeg(self):
         """Looping untuk membaca stream, deteksi, dan update frame untuk MJPEG."""
         if not self.yolo_model:
-            print("Model YOLO tidak siap untuk stream MJPEG.")
+            print("[MJPEG Stream] Model YOLO tidak siap.")
             return
 
-        print("Memulai thread pemrosesan RTSP untuk MJPEG...")
-        cap = cv2.VideoCapture(self.config.VIDEO_SOURCE)
-        
-        while True:
-            if not cap.isOpened():
-                print("Koneksi RTSP terputus, mencoba menyambung ulang...")
-                cap.release()
-                time.sleep(5)
-                cap = cv2.VideoCapture(self.config.VIDEO_SOURCE)
-                continue
-                
-            ret, frame = cap.read()
-            if not ret:
-                continue
+        print("[MJPEG Stream] Memulai thread pemrosesan video untuk MJPEG...")
+        cap = None # Inisialisasi cap di luar loop
 
-            # Lakukan deteksi dan gambar bounding box
-            results = self.yolo_model(frame, verbose=False, half=True, device='cpu') # Optimasi
-            annotated_frame = frame.copy()
+        while True:
+            # Pastikan cap terinisialisasi dan terbuka
+            if cap is None or not cap.isOpened():
+                print(f"[MJPEG Stream] Mencoba membuka video: {self.config.VIDEO_SOURCE}")
+                if cap is not None:
+                    cap.release() # Pastikan resource lama dilepaskan
+                
+                cap = cv2.VideoCapture(self.config.VIDEO_SOURCE)
+                
+                # Coba set buffer size ke 1 untuk mengurangi latency (opsional, bisa membantu)
+                # cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+
+                time.sleep(0.5) # Beri sedikit waktu untuk file terbuka
+                
+                if not cap.isOpened():
+                    print("[MJPEG Stream] Gagal membuka video. Mencoba lagi dalam 5 detik...")
+                    time.sleep(5)
+                    continue # Langsung coba lagi di iterasi berikutnya
+
+            ret, frame = cap.read()
+
+            if not ret:
+                # Jika tidak ada frame yang berhasil dibaca (akhir video atau error)
+                print("[MJPEG Stream] Akhir video atau gagal membaca frame. Mencoba mengulang video...")
+                cap.release() # Lepaskan resource
+                cap = None # Set cap ke None agar di iterasi berikutnya akan mencoba membuka kembali
+                time.sleep(0.1) # Jeda singkat sebelum mengulang
+                continue # Langsung coba lagi di iterasi berikutnya
+
+            # --- OPTIMASI KUNCI UNTUK KECEPATAN: RESIZE FRAME SEBELUM YOLO ---
+            # Resolusi yang lebih rendah mempercepat inferensi YOLO secara drastis
+            # Contoh: Resize ke lebar 640px sambil menjaga aspect ratio
+            target_width = 640 
+            if frame.shape[1] > target_width: # Hanya resize jika frame lebih besar dari target
+                aspect_ratio = float(frame.shape[1]) / float(frame.shape[0])
+                target_height = int(target_width / aspect_ratio)
+                frame_for_yolo = cv2.resize(frame, (target_width, target_height))
+            else:
+                frame_for_yolo = frame.copy() # Jika sudah kecil, gunakan frame asli
+            # --- AKHIR OPTIMASI ---
+
+            # Lakukan deteksi YOLO
+            # Gunakan frame_for_yolo yang sudah di-resize
+            results = self.yolo_model(frame_for_yolo, verbose=False, half=True, device='cpu') 
+            
+            # Selalu mulai dengan salinan frame asli untuk memastikan video bergerak
+            annotated_frame = frame.copy() 
+
             if results and results[0].boxes:
                 for box in results[0].boxes:
-                    if self.yolo_model.names[int(box.cls[0].item())].lower() == self.config.TARGET_CLASS_NAME.lower():
+                    detected_class_id = int(box.cls[0].item())
+                    detected_class_name = self.yolo_model.names[detected_class_id].lower()
+
+                    if detected_class_name == self.config.TARGET_CLASS_NAME.lower():
+                        # Koordinat dari YOLO (mungkin dari frame_for_yolo) perlu diskalakan kembali
+                        # ke ukuran frame asli untuk menggambar di annotated_frame
                         x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
+                        
+                        # Skalakan koordinat jika frame di-resize sebelumnya
+                        if frame.shape[1] > target_width:
+                            scale_x = frame.shape[1] / frame_for_yolo.shape[1]
+                            scale_y = frame.shape[0] / frame_for_yolo.shape[0]
+                            x1, y1, x2, y2 = int(x1 * scale_x), int(y1 * scale_y), int(x2 * scale_x), int(y2 * scale_y)
+
                         cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
             
             # Update frame yang akan di-stream secara thread-safe
             with self.frame_lock:
                 self.latest_annotated_frame = annotated_frame.copy()
-        
+            
+            # HAPUS time.sleep() di sini atau set ke nilai sangat kecil (misal 0.001)
+            # Biarkan loop berjalan secepat mungkin jika performa YOLO sudah baik
+            # time.sleep(0.001)
         cap.release()

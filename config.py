@@ -8,8 +8,8 @@ class Config:
     """Menyimpan semua konfigurasi aplikasi, membaca kredensial dari .env"""
     def __init__(self):
         # --- Konfigurasi yang Tidak Rahasia ---
-        self.YOLO_MODEL_PATH = r"D:\Downloads\besti.pt"
-        self.VIDEO_SOURCE = r"rtsp://localhost:8554/mystream"
+        self.YOLO_MODEL_PATH = r"D:\Downloads\v8n.pt"
+        self.VIDEO_SOURCE = r"D:\skripsi\ayam_panjang.mp4"#"rtsp://localhost:8554/mystream"
         self.TARGET_CLASS_NAME = 'broiler'
         self.MJPEG_HOST = '0.0.0.0'
         self.MJPEG_PORT = 8080
