@@ -28,7 +28,6 @@
         object-fit: contain;
         border-radius: 0.375rem; /* Menyamakan dengan border-radius card */
       }
-      /* Style baru untuk kotak sensor */
       .sensor-box {
         background-color: #343a40;
         padding: 1rem;
@@ -151,7 +150,6 @@
 
           if (data.error) {
             console.error("Error dari API:", data.error);
-            // Menampilkan error pada semua kotak sensor
             for (let i = 1; i <= 4; i++) {
               const sensorBox = document.getElementById(`sensor_${i}_display`);
               if (sensorBox) {
@@ -170,47 +168,43 @@
             imgElementAyam.src = newImageUrlAyam;
           }
 
+          // =======================================================
+          // === PERBAIKAN ADA DI BLOK DI BAWAH INI ===
           // --- Update Peta Sebaran Suhu (Heatmap) ---
           const imgElementSuhu = document.getElementById("gambar-heatmap-suhu");
           const newImageUrlSuhu =
-            data.temperature.heatmap_url ||
+            data.mapping.heatmap_plot_url || // Mengambil dari 'data.mapping'
             "https://via.placeholder.com/300x200/343a40/ffffff?text=Data+Error";
           if (imgElementSuhu.src !== newImageUrlSuhu) {
             imgElementSuhu.src = newImageUrlSuhu;
           }
+          // =======================================================
 
-          // --- Update Data Suhu pada Kotak Sensor (REVISI) ---
+          // --- Update Data Suhu pada Kotak Sensor ---
           if (data.temperature && data.temperature.individual_sensors) {
             const sensors = data.temperature.individual_sensors;
-
-            // Loop untuk 4 sensor
             for (let i = 1; i <= 4; i++) {
               const sensorId = `sensor_${i}`;
               const sensorBox = document.getElementById(`${sensorId}_display`);
-
-              // Cari data untuk sensor saat ini
               const sensorData = sensors.find((s) => s.sensor_id === sensorId);
-
               if (sensorBox) {
-                if (sensorData) {
-                  // Jika data ditemukan, update nilainya
+                if (sensorData && sensorData.temperature_celsius !== null) {
+                  const tempValue = parseFloat(sensorData.temperature_celsius);
                   sensorBox.innerHTML = `
-                            <span class="sensor-label">Sensor ${i}</span>
-                            <span class="sensor-value">${sensorData.temperature_celsius.toFixed(
-                              2
-                            )} °C</span>
-                        `;
+                                <span class="sensor-label">Sensor ${i}</span>
+                                <span class="sensor-value">${tempValue.toFixed(
+                                  2
+                                )} °C</span>
+                            `;
                 } else {
-                  // Jika data sensor spesifik tidak ada
                   sensorBox.innerHTML = `
-                            <span class="sensor-label">Sensor ${i}</span>
-                            <span class="sensor-value">N/A</span>
-                        `;
+                                <span class="sensor-label">Sensor ${i}</span>
+                                <span class="sensor-value">N/A</span>
+                            `;
                 }
               }
             }
           } else {
-            // Jika data suhu tidak tersedia sama sekali
             for (let i = 1; i <= 4; i++) {
               const sensorBox = document.getElementById(`sensor_${i}_display`);
               if (sensorBox) {
@@ -220,7 +214,6 @@
           }
         } catch (error) {
           console.error("Gagal mengambil data dashboard:", error);
-          // Handle error dengan menampilkan status error di UI
           for (let i = 1; i <= 4; i++) {
             const sensorBox = document.getElementById(`sensor_${i}_display`);
             if (sensorBox) {
@@ -250,11 +243,9 @@
           now.toLocaleString("id-ID", options);
       }
 
-      // Jalankan saat halaman pertama kali dimuat
       document.addEventListener("DOMContentLoaded", () => {
-        updateDashboardData(); // Memuat semua data dashboard
+        updateDashboardData();
         updateWaktu();
-        // Atur pembaruan data setiap 5 detik
         setInterval(updateDashboardData, 5000);
         setInterval(updateWaktu, 1000);
       });

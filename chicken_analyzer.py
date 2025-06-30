@@ -151,6 +151,65 @@ class ChickenDensityAnalyzer:
 
     def is_ready(self):
         return all([self.yolo_model_s is not None, self.yolo_model_n is not None, self.homography_matrix is not None, self.roi_polygon_coords is not None])
+    def _create_temperature_heatmap(self, timestamp):
+        """
+        Mengambil data suhu, melakukan interpolasi, dan membuat gambar heatmap.
+        """
+        print("Membuat plot heatmap suhu...")
+        
+        sensor_data = self.supabase_handler.get_latest_temperature_data()
+        
+        if not sensor_data or len(sensor_data) < 3:
+            print("Data suhu tidak cukup untuk membuat heatmap.")
+            # ... (kode untuk membuat placeholder jika data kurang) ...
+            return "path/to/placeholder.png" # Ganti dengan path placeholder jika perlu
+
+        points, values = [], []
+        for data in sensor_data:
+            sensor_id = data['sensor_id']
+            if sensor_id in self.config.SENSOR_COORDINATES:
+                points.append(self.config.SENSOR_COORDINATES[sensor_id])
+                values.append(float(data['temperature_celsius'])) # Pastikan tipe datanya float
+
+        points = np.array(points)
+        values = np.array(values)
+        
+        from scipy.interpolate import griddata
+        grid_x, grid_y = np.mgrid[0:self.config.REAL_WORLD_WIDTH_M:100j, 0:self.config.REAL_WORLD_HEIGHT_M:100j]
+        grid_z = griddata(points, values, (grid_x, grid_y), method='cubic')
+
+        plt.figure(figsize=(8, 7))
+        
+        # Gunakan colormap 'hot' seperti di contoh
+        plt.imshow(grid_z.T, extent=(0,3,0,3), origin='lower', cmap='hot', interpolation='bicubic')
+        
+        cbar = plt.colorbar()
+        cbar.set_label('Temperature (°C)')
+        
+        # Plot titik-titik sensor dengan labelnya
+        scatter_sensors = plt.scatter(points[:, 0], points[:, 1], c='blue', s=150, edgecolors='white', label='Sensors')
+        
+        # Cari dan plot titik terpanas
+        try:
+            max_temp_idx = np.unravel_index(np.nanargmax(grid_z), grid_z.shape)
+            heatspot_x = grid_x[max_temp_idx[0], 0]
+            heatspot_y = grid_y[0, max_temp_idx[1]]
+            scatter_heatspot = plt.scatter(heatspot_x, heatspot_y, c='green', marker='X', s=250, edgecolors='white', linewidth=2, label='Heatspot Center')
+            plt.legend(handles=[scatter_sensors, scatter_heatspot])
+        except (ValueError, IndexError):
+            print("Tidak bisa menemukan titik terpanas, kemungkinan semua nilai NaN.")
+            plt.legend(handles=[scatter_sensors])
+        
+        plt.title(f"Temperature Heatmap at {timestamp.strftime('%Y-%m-%d %H:%M:%S')}")
+        plt.xlabel("X Coordinate (m)")
+        plt.ylabel("Y Coordinate (m)")
+        
+        plot_path = os.path.join(self.config.TEMP_PLOT_DIR, f"heatmap_plot_{timestamp.strftime('%Y%m%d_%H%M%S')}.png")
+        plt.savefig(plot_path, bbox_inches='tight')
+        plt.close()
+        
+        print("Plot heatmap suhu berhasil dibuat.")
+        return plot_path
 
     # === PERBAIKAN #2: FUNGSI INI DIRAPIKAN TOTAL ===
     def run_mapping_cycle(self):
@@ -191,19 +250,20 @@ class ChickenDensityAnalyzer:
         
         annotated_image, world_coords, in_roi_count = self._process_detections(frame.copy(), detections)
         plot_path, grid_data, high_density_alerts = self._create_density_plot(world_coords, current_ts)
-
-        # ... (sisa fungsi untuk upload ke supabase tidak perlu diubah)
+        #plot heatmap suhu
+        heatmap_plot_path = self._create_temperature_heatmap(current_ts)
+        
         annotated_img_path = os.path.join(self.config.TEMP_PLOT_DIR, f"annotated_snapshot_{ts_str}.jpg")
         cv2.imwrite(annotated_img_path, annotated_image)
         snapshot_url = self.supabase_handler.upload_file(self.config.BUCKET_SNAPSHOT_NAME, annotated_img_path, os.path.basename(annotated_img_path))
         plot_url = self.supabase_handler.upload_file(self.config.BUCKET_PLOT_NAME, plot_path, os.path.basename(plot_path))
-        heatmap_placeholder_url = "https://via.placeholder.com/300x200/343a40/ffffff?text=Heatmap+Belum+Tersedia"
+        heatmap_url = self.supabase_handler.upload_file(self.config.BUCKET_HEATMAP_NAME, heatmap_plot_path, os.path.basename(heatmap_plot_path)) # Gunakan bucket 'heatmap'
         if snapshot_url and plot_url:
             db_data = {
                 "mapping_timestamp": current_ts.replace(tzinfo=timezone.utc).isoformat(),
                 "source_screenshot_url": snapshot_url,
                 "density_plot_url": plot_url,
-                "heatmap_plot_url": heatmap_placeholder_url,
+                "heatmap_plot_url": heatmap_url,
                 "chickens_in_roi_count": in_roi_count,
                 "grid_density_data": grid_data
             }
@@ -211,7 +271,7 @@ class ChickenDensityAnalyzer:
         if high_density_alerts:
             # ... (notifikasi telegram tidak berubah)
             pass
-        for f_path in [annotated_img_path, plot_path]:
+        for f_path in [annotated_img_path, plot_path, heatmap_plot_path]:
             if f_path and os.path.exists(f_path):
                 try: os.remove(f_path)
                 except OSError as e: print(f"Error menghapus file sementara '{f_path}': {e}")

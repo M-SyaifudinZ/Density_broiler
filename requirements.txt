@@ -7,3 +7,4 @@ flask
 schedule
 requests
 python-dotenv
+scipy

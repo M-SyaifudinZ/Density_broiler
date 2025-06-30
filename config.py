@@ -10,7 +10,7 @@ class Config:
         # --- Konfigurasi yang Tidak Rahasia ---
         self.YOLO_MODEL_PATH_SMALL = r"D:\Downloads\besti.pt"#"besti.pt/v8n.pt"
         self.YOLO_MODEL_PATH_NANO = r"D:\Downloads\v8n.pt"
-        self.VIDEO_SOURCE = r"D:\skripsi\ayam_panjang.mp4"#"rtsp://localhost:8554/mystream"#
+        self.VIDEO_SOURCE = r"D:\Downloads\Ayam Panjang.mp4"#"rtsp://localhost:8554/mystream"#
         self.TARGET_CLASS_NAME = 'broiler'
         self.MJPEG_HOST = '0.0.0.0'
         self.MJPEG_PORT = 8080
@@ -25,6 +25,13 @@ class Config:
         self.TEMP_PLOT_DIR = r"D:\Downloads\temp_files"
         self.BUCKET_SNAPSHOT_NAME = "ssayam"
         self.BUCKET_PLOT_NAME = "plotayam"
+        self.BUCKET_HEATMAP_NAME = "heatmap"
+        self.SENSOR_COORDINATES = {
+            'sensor_1': (0, 3),
+            'sensor_2': (3, 3),
+            'sensor_3': (3, 0),
+            'sensor_4': (0, 0)
+        }
         self.STREAM_PROCESSING_INTERVAL_S = 1.0 
 
         # --- Konfigurasi Rahasia dibaca dari Environment Variables (.env) ---
